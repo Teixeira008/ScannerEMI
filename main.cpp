@@ -16,6 +16,7 @@
   #warning Using Timer1, Timer3
 #endif
 
+#define TIMER_FREQ_HZ        4000.0
 
 #include <Arduino.h>
 #include <TimerInterrupt.h>
@@ -279,27 +280,27 @@ void passoZ(int direcao, int velocidade) {
 
 void zeraY() {
     while (digitalRead(fimdcursoY) == LOW) {
-        passoY(1, 500);
+        passoY(1, 2000);
     }
 
     for (int y = 0; y < 200; y++) {
-        passoY(0, 500);
+        passoY(0, 2000);
     }
 
     while (digitalRead(fimdcursoY) == LOW) {
-        passoY(1, 1500);
+        passoY(1, 6000);
     }
 }
 
 void zeraX() {
     while (digitalRead(fimdcursoX) == LOW) {
-        passoX(0, 500);
+        passoX(0, 2000);
     }
     for (int x = 0; x < 200; x++) {
-        passoX(1, 500);
+        passoX(1, 2000);
     }
     while (digitalRead(fimdcursoX) == LOW) {
-        passoX(0, 1500);
+        passoX(0, 6000);
     }
 }
 
@@ -404,7 +405,7 @@ void setup() {
       if(PDBG) Serial.println(F("Can't set ITimer1. Select another freq. or timer"));
 
       
-    if (ITimer2.attachInterruptInterval(1, trataMotores))
+    if (ITimer2.setFrequency(TIMER_FREQ_HZ, trataMotores))
     {
       if(PDBG) Serial.print(F("Starting  ITimer2 OK, millis() = ")); 
       if(PDBG) Serial.println(millis());
@@ -533,16 +534,19 @@ void salvaMensagem(uint8_t * mensagem)
     if(converte16.valor16 >= 4800) motores.XposicaoDesejada = 4800;
     else motores.XposicaoDesejada = converte16.valor16;
 
+    motores.XposicaoDesejada *= 4;
+
     converte16.valor8[0] = mensagem[5];
     converte16.valor8[1] = mensagem[6];
     if(converte16.valor16 >= 4700) motores.YposicaoDesejada = 4700;
     else motores.YposicaoDesejada = converte16.valor16;
+    motores.YposicaoDesejada *= 4;
 
     converte16.valor8[0] = mensagem[7];
     converte16.valor8[1] = mensagem[8];
     if(converte16.valor16 > 13000) converte16.valor16 = 13000;
-    converte16.valor16 = converte16.valor16 * 5;
-    if(converte16.valor16 >= 18300) motores.ZposicaoDesejada = 18300;
+    converte16.valor16 = converte16.valor16 * 10;
+    if(converte16.valor16 >= 36600) motores.ZposicaoDesejada = 36600;
     else motores.ZposicaoDesejada = converte16.valor16;
   }
 }
