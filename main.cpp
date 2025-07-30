@@ -498,38 +498,7 @@ void setup() {
     zeraZ();
     if(PDBG) Serial.println("Zerou o Z");*/
 }
-void respostaSerial(){
-   {
-  if (Serial.available()) {
-    byte byteRecebido = Serial.read();
 
-    if (index < 11) {
-      dados[index] = byteRecebido;
-      index++;
-
-      if (index >= 11) {
-        estado = 0;
-        index = 0;
-
-        if (validaChecksum(dados)) {
-          
-          salvaMensagem(dados);
-
-          
-          dados[2] = 3;
-
-          delay(10); 
-
-          
-          for (uint8_t k = 0; k < 11; k++) {
-            Serial.write(dados[k]);
-            dados[k] = 0; 
-          }
-        }
-      }
-    }
-  }
-}
 void loop() {
     /*if (stopFlag) {
         
@@ -634,8 +603,18 @@ void processoSerial() {
           if(index >= 11){
             estado = 0;
             index = 0;
-            if(validaChecksum(dados)) salvaMensagem(dados);
-            delay(10);            
+            if(validaChecksum(dados)){
+              salvaMensagem(dados);
+              if(motores.posicaoZerada == 1){
+              dados[2] = 3;
+              Serial.println(" vai rebolar de ladinho pro crias");
+              delay(10);
+              } /*else if (motores.posicaoZerada == 0){
+                dados[2] = 4;
+                Serial.println("sem fudeu otario, vai resolver b.o");
+              }*/
+            } 
+                        
             for(uint8_t k = 0; k < 11;k++){
               Serial.write(dados[k]);
 
