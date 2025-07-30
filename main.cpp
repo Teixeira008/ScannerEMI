@@ -498,7 +498,38 @@ void setup() {
     zeraZ();
     if(PDBG) Serial.println("Zerou o Z");*/
 }
+void respostaSerial(){
+   {
+  if (Serial.available()) {
+    byte byteRecebido = Serial.read();
 
+    if (index < 11) {
+      dados[index] = byteRecebido;
+      index++;
+
+      if (index >= 11) {
+        estado = 0;
+        index = 0;
+
+        if (validaChecksum(dados)) {
+          
+          salvaMensagem(dados);
+
+          
+          dados[2] = 3;
+
+          delay(10); 
+
+          
+          for (uint8_t k = 0; k < 11; k++) {
+            Serial.write(dados[k]);
+            dados[k] = 0; 
+          }
+        }
+      }
+    }
+  }
+}
 void loop() {
     /*if (stopFlag) {
         
