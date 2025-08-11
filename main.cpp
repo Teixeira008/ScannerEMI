@@ -40,7 +40,8 @@
 #define fimdcursoX 9
 #define fimdcursoZ 11
 
-#define PDBG 0 // habilita prints de debug
+#define PDBG 0
+ // habilita prints de debug
 
 
 struct{
@@ -54,6 +55,10 @@ struct{
   uint8_t comando;
   unsigned long tUltimaPiscada;
   uint16_t tempoPiscada;
+  bool respostaPendente;
+  bool Xok;
+  bool Yok;
+  bool Zok;
 
 
 }motores;
@@ -115,6 +120,37 @@ void meioPassoSoltoZ(bool direcao) {
     digitalWrite(stepZ, HIGH);
     digitalWrite(stepA, HIGH);
     lastState = 1;
+  }
+}
+
+void devolveResposta(void)
+{
+  uint8_t dados[11];
+
+  dados[0] = 0xAC;
+  dados[1] = 0x33;
+  dados[2] = 3;
+  dados[3] = 0;
+  dados[4] = 0;
+  dados[5] = 0;
+  dados[6] = 0;
+  dados[7] = 0;
+  dados[8] = 0;
+  dados[9] = 0;
+  dados[10] = 0;
+  
+  
+  // carregar os dados no array
+
+  // calcular checksum
+  
+  if(motores.respostaPendente)
+  {
+    for(uint8_t i = 0; i<11;i++)
+    {
+      Serial.write(dados[i]);
+    }
+    motores.respostaPendente = 0;
   }
 }
 
@@ -246,10 +282,13 @@ void zeraSolto(bool forcaZera){
       motores.YposicaoDesejada = 0;
       motores.ZposicaoDesejada = 0;
       motores.posicaoZerada = 1;
+      devolveResposta();
       if(PDBG) Serial.println("todos os eixos zerados");
     } 
   }
 }
+
+
 
 void passoY(int direcao, int velocidade) {
     digitalWrite(dirY, direcao);
@@ -339,6 +378,9 @@ void trataMotores(void)
       meioPassoSoltoX(0);
       motores.XposicaoAtual --;
     }
+    else{
+      motores.Xok = 1;
+    }
 
     if(motores.YposicaoAtual < motores.YposicaoDesejada){
       meioPassoSoltoY(1);
@@ -347,6 +389,9 @@ void trataMotores(void)
     else if(motores.YposicaoAtual > motores.YposicaoDesejada){
       meioPassoSoltoY(0);
       motores.YposicaoAtual --;
+    }
+    else{
+      motores.Yok = 1;
     }
 
     if(motores.ZposicaoAtual < motores.ZposicaoDesejada){
@@ -357,6 +402,14 @@ void trataMotores(void)
       meioPassoSoltoZ(0);
       motores.ZposicaoAtual --;
     }
+    else{
+      motores.Zok = 1;
+    }
+
+    if(motores.Xok && motores.Yok && motores.Zok){
+      devolveResposta();
+    }
+
   }
   else{
     zeraSolto(0);
@@ -524,6 +577,7 @@ void salvaMensagem(uint8_t * mensagem)
   //faz o que a mensagem pedir
   if(mensagem[2] == 1){
     zeraSolto(1);
+    motores.respostaPendente = 1;
     //motores.tempoPiscada = 100;
     //zerar posicionamento motor
   }
@@ -548,15 +602,64 @@ void salvaMensagem(uint8_t * mensagem)
     converte16.valor16 = converte16.valor16 * 10;
     if(converte16.valor16 >= 36600) motores.ZposicaoDesejada = 36600;
     else motores.ZposicaoDesejada = converte16.valor16;
+
+    motores.Xok = 0;
+    motores.Yok = 0;
+    motores.Zok = 0;
+    motores.respostaPendente = 1;
   }
 }
 
-bool validaChecksum(uint8_t * mensagem)
+bool validaChecksum(uint8_t * mensagem )
 {
   //faz calculo e retorna se o checksum tá valido
   // 1 = válido
-  return 1;
+  uint16_t checksum = 0x0000;
+  for(int i = 0; i <9; i++){
+    checksum ^= mensagem[i] << 8;
+    if(checksum & 0x8000){
+    for(int j = 0; j < 8; j++){
+      if(checksum & 0x8000){
+        checksum = (checksum << 1) ^ 0x0000;
+      } else {
+        checksum = (checksum << 1);
+      }
+    }
+    }
+    converte16.valor8[0] = mensagem[9];
+    converte16.valor8[1] = mensagem[10];
+    if(converte16.valor16 == checksum){
+      return 1;
+    } else return 0;
+  }
+  
 }
+
+bool validaChecksum(uint8_t * mensagem )
+{
+  //faz calculo e retorna se o checksum tá valido
+  // 1 = válido
+  uint16_t checksum = 0x0000;
+  for(int i = 0; i <9; i++){
+    checksum ^= mensagem[i] << 8;
+    if(checksum & 0x8000){
+    for(int j = 0; j < 8; j++){
+      if(checksum & 0x8000){
+        checksum = (checksum << 1) ^ 0x0000;  
+      } else {
+        checksum = (checksum << 1);
+      }
+    }
+    }
+    
+    converte16.valor16 == checksum;
+    mensagem[9] = converte16.valor8[0];
+    mensagem[10] = converte16.valor8[1];
+  }
+  
+}
+
+
 
 void processoSerial() {
   static uint8_t estado = 0;
@@ -605,21 +708,22 @@ void processoSerial() {
             index = 0;
             if(validaChecksum(dados)){
               salvaMensagem(dados);
-              if(motores.posicaoZerada == 1){
-              dados[2] = 3;
-              Serial.println(" vai rebolar de ladinho pro crias");
               delay(10);
-              } /*else if (motores.posicaoZerada == 0){
-                dados[2] = 4;
-                Serial.println("sem fudeu otario, vai resolver b.o");
-              }*/
             } 
-                        
             for(uint8_t k = 0; k < 11;k++){
-              Serial.write(dados[k]);
+              //Serial.write(dados[k]);
 
               dados[k] = 0;
             }
+
+            // if(motores.XposicaoAtual == motores.XposicaoDesejada && motores.YposicaoAtual == motores.YposicaoDesejada && motores.ZposicaoAtual == motores.ZposicaoDesejada){
+            //   dados[2] = 3;
+            //   for(uint8_t k = 0; k < 11;k++){
+            //   Serial.write(dados[k]);
+
+            //   dados[k] = 0;
+            //   }
+            // }          
           }
         }
         break;
