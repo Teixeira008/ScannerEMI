@@ -1,3 +1,4 @@
+
 #define TIMER_INTERRUPT_DEBUG         0
 #define _TIMERINTERRUPT_LOGLEVEL_     0
 
@@ -63,8 +64,13 @@ struct{
 
 }motores;
 
-
+union{
+  uint16_t valor16;
+  uint8_t valor8[2];
+}converte16;
 void processoSerial();
+void calcula_Checksum(uint8_t * mensagem );
+void trataMotores(void);
 
 bool verificaTempoPassado(uint16_t tempoEspera, unsigned long * tUltimaExecucao){
   unsigned long tAtual = millis();
@@ -130,19 +136,26 @@ void devolveResposta(void)
   dados[0] = 0xAC;
   dados[1] = 0x33;
   dados[2] = 3;
-  dados[3] = 0;
-  dados[4] = 0;
-  dados[5] = 0;
-  dados[6] = 0;
-  dados[7] = 0;
-  dados[8] = 0;
-  dados[9] = 0;
-  dados[10] = 0;
-  
+
+  converte16.valor16 = motores.XposicaoDesejada/4;
+
+  dados[3] = converte16.valor8[0];
+  dados[4] = converte16.valor8[1];
+
+  converte16.valor16 = motores.YposicaoDesejada/4;
+
+  dados[5] = converte16.valor8[0];
+  dados[6] = converte16.valor8[1];
+
+  converte16.valor16 = motores.ZposicaoDesejada/10;
+
+  dados[7] = converte16.valor8[0];
+  dados[8] = converte16.valor8[1]; 
   
   // carregar os dados no array
 
   // calcular checksum
+    calcula_Checksum(dados);
   
   if(motores.respostaPendente)
   {
@@ -565,11 +578,6 @@ void loop() {
     
   
 }
-union{
-  uint16_t valor16;
-  uint8_t valor8[2];
-}converte16;
-
 
 void salvaMensagem(uint8_t * mensagem)
 {
@@ -615,48 +623,48 @@ bool validaChecksum(uint8_t * mensagem )
   //faz calculo e retorna se o checksum tá valido
   // 1 = válido
   uint16_t checksum = 0x0000;
-  for(int i = 0; i <9; i++){
-    checksum ^= mensagem[i] << 8;
-    if(checksum & 0x8000){
-    for(int j = 0; j < 8; j++){
-      if(checksum & 0x8000){
-        checksum = (checksum << 1) ^ 0x0000;
-      } else {
-        checksum = (checksum << 1);
+  for (int i = 0; i < 9; i++) {
+      checksum ^= (uint16_t)mensagem[i] << 8;
+      for (int j = 0; j < 8; j++) {
+          if (checksum & 0x8000) {
+              checksum = (checksum << 1) ^ 0x8005;
+          } else {
+              checksum <<= 1;
+          }
+          checksum &= 0xFFFF; // comportamento implícito em uint16_t
       }
-    }
-    }
-    converte16.valor8[0] = mensagem[9];
-    converte16.valor8[1] = mensagem[10];
-    if(converte16.valor16 == checksum){
-      return 1;
-    } else return 0;
   }
+
+  converte16.valor8[1] = mensagem[9];
+  converte16.valor8[0] = mensagem[10];
+
+  if(converte16.valor16 == checksum){
+    return 1;
+  } else return 0; 
   
 }
 
-bool validaChecksum(uint8_t * mensagem )
+void calcula_Checksum(uint8_t * mensagem )
 {
   //faz calculo e retorna se o checksum tá valido
   // 1 = válido
   uint16_t checksum = 0x0000;
-  for(int i = 0; i <9; i++){
-    checksum ^= mensagem[i] << 8;
-    if(checksum & 0x8000){
-    for(int j = 0; j < 8; j++){
-      if(checksum & 0x8000){
-        checksum = (checksum << 1) ^ 0x0000;  
-      } else {
-        checksum = (checksum << 1);
+
+  for (int i = 0; i < 9; i++) {
+      checksum ^= (uint16_t)mensagem[i] << 8;
+      for (int j = 0; j < 8; j++) {
+          if (checksum & 0x8000) {
+              checksum = (checksum << 1) ^ 0x8005;
+          } else {
+              checksum <<= 1;
+          }
+          checksum &= 0xFFFF; // comportamento implícito em uint16_t
       }
-    }
-    }
-    
-    converte16.valor16 == checksum;
-    mensagem[9] = converte16.valor8[0];
-    mensagem[10] = converte16.valor8[1];
   }
-  
+    
+  converte16.valor16 = checksum;
+  mensagem[9] = converte16.valor8[1];
+  mensagem[10] = converte16.valor8[0];
 }
 
 
@@ -708,8 +716,9 @@ void processoSerial() {
             index = 0;
             if(validaChecksum(dados)){
               salvaMensagem(dados);
-              delay(10);
+              delay(1);
             } 
+            //calcula_Checksum(dados);
             for(uint8_t k = 0; k < 11;k++){
               //Serial.write(dados[k]);
 
